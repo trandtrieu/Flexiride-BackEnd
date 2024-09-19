@@ -1,3 +1,4 @@
+require('dotenv').config();
 const jwt = require('jsonwebtoken');
 
 const generateRandomCode = () => {
@@ -9,13 +10,13 @@ exports.sendCode = async (req, res) => {
     const { body, phone } = req.body;
 
     try {
-        const accountSid = 'AC7b772193fccdae5080e9f8eccd84ef18';
-        const authToken = 'fa7ba7e1dd6d3dc3f54461f3b0118cd3';
+        const accountSid = process.env.ACCOUNTSID; 
+        const authToken = process.env.AUTH_TOKEN; 
         const client = require('twilio')(accountSid, authToken);
         client.messages
             .create({
                 body: body,
-                from: '+14028502478',
+                from: '+18152051461',
                 to: phone
             })
             .then(message => console.log(message.sid));
