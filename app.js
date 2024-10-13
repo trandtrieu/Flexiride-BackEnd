@@ -5,7 +5,7 @@ const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth');
 const serviceRouter = require('./routes/service');
 const customerRouter = require('./routes/customerRouter')
-
+const driverRouter = require('./routes/driverRouter')
 // Kết nối MongoDB
 connectDB();
 
@@ -19,6 +19,8 @@ app.use(bodyParser.json());
 app.use('/auth', authRoutes);
 app.use('/service', serviceRouter);
 app.use('/customer', customerRouter);
+app.use('/driver', driverRouter)
+
 
 // Khởi động server
 const PORT = process.env.PORT || 3000;
