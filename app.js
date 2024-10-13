@@ -6,7 +6,7 @@ const authRoutes = require('./routes/auth');
 const serviceRouter = require('./routes/service');
 const customerRouter = require('./routes/customerRouter')
 const driverRouter = require('./routes/driverRouter')
-const bookingCarpoolRouter = require('./routes/bookingCarpool')
+const bookingCarpoolRouter = require('./routes/bookingCarpoolRouter')
 
 // Kết nối MongoDB
 connectDB();
