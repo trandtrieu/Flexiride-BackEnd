@@ -33,7 +33,7 @@ const DriverSchema = new mongoose.Schema(
         frontImage: { type: String, default: 'https://th.bing.com/th/id/OIP.Ti-x0_GOFLk9GPXPNnpvvgHaE-?rs=1&pid=ImgDetMain' },
         backImage: { type: String, default: 'https://th.bing.com/th/id/OIP.Ti-x0_GOFLk9GPXPNnpvvgHaE-?rs=1&pid=ImgDetMain' },
         issueDate: { type: Date, default: '' },
-        issuePlace: { type: Date, default: '' }
+        issuePlace: { type: String, default: '' }
       },
       driverLicense: {
         frontImage: { type: String, default: 'https://quocluat.vn/photos/dichvu_post/bang-lai-xe.jpg?1499764192960' },
@@ -47,8 +47,8 @@ const DriverSchema = new mongoose.Schema(
       vehicleRegistration: {
         frontImage: { type: String, default: 'https://th.bing.com/th/id/OIP.pbaJfWMkMcBrAWtSA4kL2wHaFj?rs=1&pid=ImgDetMain' },
         backImage: { type: String, default: 'https://th.bing.com/th/id/OIP.pbaJfWMkMcBrAWtSA4kL2wHaFj?rs=1&pid=ImgDetMain' },
-        licensePlate: { type: Date, default: '' },
-        fuelType: { type: Date, default: '' }
+        licensePlate: { type: String, default: '' },
+        fuelType: { type: String, default: '' }
       },
       vehicleInsurance: {
         frontImage: { type: String, default: 'https://hillspangroup.com/wp-content/uploads/2023/03/Motor-Insurance_.png' },
@@ -70,7 +70,7 @@ const DriverSchema = new mongoose.Schema(
     role: {
       type: String,
       default: '1',
-      enum: ['1', '2', '3']  // Corrected enum values to represent possible roles
+      enum: ['1', '2', '3']
     }
   },
   {
@@ -80,17 +80,25 @@ const DriverSchema = new mongoose.Schema(
 
 // Hash password before saving to database
 DriverSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('personalInfo.password')) {
     return next();
   }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.personalInfo.password = await bcrypt.hash(this.personalInfo.password, salt);
+    next();
+  } catch (error) {
+    next(error);  // Pass error to next middleware for handling
+  }
 });
 
 // Check if password is valid
 DriverSchema.methods.isValidPassword = async function (password) {
-  return await bcrypt.compare(password, this.password);
+  try {
+    return await bcrypt.compare(password, this.personalInfo.password);
+  } catch (error) {
+    throw new Error(error);
+  }
 };
 
 module.exports = mongoose.model('Driver', DriverSchema);
