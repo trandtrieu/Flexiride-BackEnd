@@ -1,6 +1,6 @@
 require('dotenv').config();
 const BookingCarpool = require('../models/bookingCarpool');
-
+const Notification = require('../models/notification'); // Đảm bảo đã import NotificationSchema
 
 exports.availableRides = async (req, res) => {
     try {
@@ -28,7 +28,7 @@ exports.availableRides = async (req, res) => {
                 $lte: upperBoundTime.toTimeString().substr(0, 5)   // Nhỏ hơn hoặc bằng thời gian kết thúc
             }
         })
-        .populate('account_id', 'name phone')
+        .populate('account_id', 'firstName lastName phoneNumber') // Thay đổi các trường để khớp với DriverSchema
         .sort({ date: 1, time_start: 1 });
 
         res.json(rides);
@@ -37,8 +37,6 @@ exports.availableRides = async (req, res) => {
         res.status(500).send('Server Error');
     }
 };
-
-
 
 exports.createRequest = async (req, res) => {
     try {
@@ -62,7 +60,7 @@ exports.createRequest = async (req, res) => {
 
         // Tạo yêu cầu mới nếu không có yêu cầu trùng lặp
         const newRequest = new BookingCarpool({
-            account_id: [req.user.id],  // Chuyển account_id vào mảng
+            account_id: ['670e7a7c5a9d4ff0504fba4e'],  // Chuyển account_id vào mảng
             start_location,
             end_location,
             date,
@@ -84,14 +82,10 @@ exports.createRequest = async (req, res) => {
     }
 };
 
-
 exports.joinRequest = async (req, res) => {
     try {
         const request = await BookingCarpool.findById(req.params.requestId);
-        console.log("=======================================================================")
-        console.log(req.user.id);
-        console.log("=======================================================================")
-        
+
         if (!request) {
             return res.status(404).json({ message: 'Request not found' });
         }
@@ -104,6 +98,7 @@ exports.joinRequest = async (req, res) => {
         if (request.account_id.includes(req.user.id)) {
             return res.status(400).json({ message: 'You have already joined this ride.' });
         }
+
         // Thêm account_id vào mảng account_id
         request.account_id.push(req.user.id);
         
@@ -120,7 +115,6 @@ exports.joinRequest = async (req, res) => {
         res.status(500).send('Server Error');
     }
 };
-
 
 exports.acceptRequest = async (req, res) => {
     try {
@@ -140,8 +134,8 @@ exports.acceptRequest = async (req, res) => {
         await request.save();
 
         // Tìm tài xế để lấy thông tin tên và số điện thoại
-        const driverName = req.user.name; // Giả sử bạn có trường name trong req.user
-        const driverPhone = req.user.phone; // Giả sử bạn có trường phone trong req.user
+        const driverName = req.user.firstName + ' ' + req.user.lastName; // Lấy tên tài xế từ thông tin người dùng
+        const driverPhone = req.user.phoneNumber; // Lấy số điện thoại tài xế
 
         // Gửi thông báo cho các khách hàng đã tham gia
         const notifications = request.account_id.map(accountId => {
@@ -162,7 +156,6 @@ exports.acceptRequest = async (req, res) => {
     }
 };
 
-
 exports.myRides = async (req, res) => {
     try {
         // Tìm tất cả chuyến xe của người dùng, bao gồm khách hàng và tài xế
@@ -174,11 +167,11 @@ exports.myRides = async (req, res) => {
         })
         .populate({
             path: 'account_id',
-            select: 'name phone' // Lấy chỉ tên và số điện thoại của khách hàng
+            select: 'firstName lastName phoneNumber' // Lấy chỉ tên và số điện thoại của khách hàng
         })
         .populate({
             path: 'driver_id',
-            select: 'name phone vehicle_info' // Lấy thông tin tài xế
+            select: 'firstName lastName phoneNumber' // Lấy thông tin tài xế
         })
         .sort({ date: -1 }) // Sắp xếp theo ngày mới nhất
         .select('start_location end_location date time_start price status createdAt updatedAt'); // Chỉ lấy các trường cần thiết
@@ -208,3 +201,168 @@ exports.myRides = async (req, res) => {
     }
 };
 
+exports.unJoinRequest = async (req, res) => {
+    try {
+        const request = await BookingCarpool.findById(req.params.requestId);
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        // Kiểm tra xem người dùng có trong danh sách tham gia không
+        if (!request.account_id.includes(req.user.id)) {
+            return res.status(400).json({ message: 'You have not joined this ride.' });
+        }
+
+        // Lấy ngày hiện tại và thời gian bắt đầu của chuyến xe
+        const currentDate = new Date();
+        const rideDate = new Date(request.date);
+        const timeStart = request.time_start.split(':'); // Chuyển đổi time_start thành giờ và phút
+        rideDate.setHours(timeStart[0], timeStart[1], 0, 0); // Thêm thời gian xuất phát vào ngày khởi hành
+
+        // Tính thời gian chênh lệch giữa thời gian hiện tại và thời gian bắt đầu của chuyến xe (đơn vị: giờ)
+        const hoursDifference = (rideDate - currentDate) / (1000 * 60 * 60);
+
+        // Nếu ngày khởi hành là hôm nay, thời gian còn lại <= 2 giờ và trạng thái chuyến đi là 'accepted', không cho hủy
+        if (hoursDifference <= 2 && request.status === 'accepted') {
+            return res.status(400).json({
+                message: 'You cannot cancel the ride less than 2 hours before the start time when it is accepted.'
+            });
+        }
+
+        // Nếu vượt qua các điều kiện kiểm tra, xóa người dùng khỏi danh sách account_id
+        request.account_id = request.account_id.filter(id => id.toString() !== req.user.id);
+
+        // Nếu không còn ai trong danh sách account_id, xóa luôn record BookingCarpool
+        if (request.account_id.length === 0) {
+            await BookingCarpool.findByIdAndDelete(req.params.requestId);
+            return res.json({ message: 'You have successfully canceled your participation, and the ride has been deleted as there are no participants left.' });
+        }
+
+        await request.save();
+
+        res.json({
+            message: 'You have successfully canceled your participation in the ride.',
+            request
+        });
+    } catch (error) {
+        console.error(error); // Log lỗi để kiểm tra
+        res.status(500).send('Server Error');
+    }
+};
+
+exports.getDriverRides = async (req, res) => {
+    try {
+        // Tìm tất cả chuyến xe mà tài xế đã nhận (status 'accepted' hoặc khác)
+        const rides = await BookingCarpool.find({
+            driver_id: req.user.id, // Chỉ chuyến xe mà tài xế này đã nhận
+            status: { $in: ['accepted', 'ongoing', 'completed'] } // Các trạng thái liên quan đến chuyến xe đang diễn ra hoặc hoàn tất
+        })
+        .populate({
+            path: 'account_id',
+            select: 'firstName lastName phoneNumber' // Lấy thông tin khách hàng
+        })
+        .select('start_location end_location date time_start price status account_id') // Chọn các trường cần thiết
+        .sort({ date: -1 }); // Sắp xếp theo ngày gần nhất
+
+        // Kiểm tra nếu tài xế chưa nhận chuyến nào
+        if (rides.length === 0) {
+            return res.status(404).json({ message: 'You have not accepted any rides.' });
+        }
+
+        res.json(rides); // Trả về danh sách chuyến xe mà tài xế đã nhận
+    } catch (error) {
+        console.error(error); // Log lỗi để kiểm tra
+        res.status(500).send('Server Error');
+    }
+};
+
+exports.updateRideStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const allowedStatuses = ['ongoing', 'completed'];
+
+        // Kiểm tra xem status được yêu cầu có hợp lệ không
+        if (!allowedStatuses.includes(status)) {
+            return res.status(400).json({ message: 'Invalid status update.' });
+        }
+
+        const ride = await BookingCarpool.findById(req.params.rideId);
+
+        if (!ride) {
+            return res.status(404).json({ message: 'Ride not found' });
+        }
+
+        // Kiểm tra xem tài xế có quyền cập nhật chuyến này không
+        if (ride.driver_id.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'You are not authorized to update this ride.' });
+        }
+
+        // Cập nhật trạng thái chuyến đi
+        ride.status = status;
+        await ride.save();
+
+        // Trả về chuyến đi đã cập nhật
+        res.json({
+            message: `Ride status updated to ${status}`,
+            ride
+        });
+    } catch (error) {
+        console.error(error); // Log lỗi để kiểm tra
+        res.status(500).send('Server Error');
+    }
+};
+
+exports.updatePickupProgress = async (req, res) => {
+    try {
+        const { rideId, customerId } = req.params;
+
+        // Tìm chuyến đi
+        const ride = await BookingCarpool.findById(rideId);
+
+        if (!ride) {
+            return res.status(404).json({ message: 'Ride not found' });
+        }
+
+        console.log("=================CHeck========================")
+
+        console.log(ride.driver_id.toString())
+        console.log(req.user.id)
+
+        // Kiểm tra xem tài xế có phải là người nhận chuyến đi này không
+        if (ride.driver_id.toString() !== req.user.id) {
+            return res.status(403).json({ message: 'You are not authorized to update this ride.' });
+        }
+        console.log("=================Pass========================")
+
+        // Kiểm tra xem khách hàng có trong chuyến đi không
+        const customerIndex = ride.account_id.findIndex(accountId => accountId.toString() === customerId);
+        if (customerIndex === -1) {
+            return res.status(404).json({ message: 'Customer not found in this ride.' });
+        }
+
+        // Cập nhật trạng thái đón khách (giả sử chúng ta lưu trạng thái này trong một mảng hoặc đối tượng)
+        if (!ride.pickupStatus) {
+            ride.pickupStatus = [];
+        }
+
+        const alreadyPickedUp = ride.pickupStatus.find(status => status.customerId.toString() === customerId);
+
+        if (alreadyPickedUp) {
+            return res.status(400).json({ message: 'This customer has already been picked up.' });
+        }
+
+        // Đánh dấu khách hàng đã được đón
+        ride.pickupStatus.push({ customerId, pickedUp: true });
+
+        await ride.save();
+
+        res.json({
+            message: 'Customer pickup status updated successfully.',
+            ride
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Server Error');
+    }
+};

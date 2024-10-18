@@ -17,11 +17,7 @@ const NotificationSchema = new mongoose.Schema({
   date: {
     type: Date,
     default: Date.now
-  },
-  readBy: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Customer'
-  }]
+  }
 }, { timestamps: true });  // Thêm createdAt và updatedAt
 
 module.exports = mongoose.model('Notification', NotificationSchema);

@@ -7,6 +7,7 @@ const serviceRouter = require('./routes/service');
 const customerRouter = require('./routes/customerRouter')
 const driverRouter = require('./routes/driverRouter')
 const bookingCarpoolRouter = require('./routes/bookingCarpoolRouter')
+const notificationRouter = require('./routes/notificationRouter')
 
 // Kết nối MongoDB
 connectDB();
@@ -24,6 +25,7 @@ app.use('/customer', customerRouter);
 app.use('/driver', driverRouter)
 
 app.use('/booking-carpool', bookingCarpoolRouter);
+app.use('/notification', notificationRouter);
 
 // Khởi động server
 const PORT = process.env.PORT || 3000;

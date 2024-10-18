@@ -34,8 +34,20 @@ const BookingCarpoolSchema = new mongoose.Schema({
   status: {
     type: String,
     default: 'pending',
-    enum: ['pending', 'accepted', 'rejected', 'completed']  // Trạng thái của chuyến đi
-  }
+    enum: ['pending', 'accepted', 'rejected', 'completed', 'ongoing']  // Trạng thái của chuyến đi
+  },
+  pickupStatus: [
+    {
+      account_id: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Customer'
+      },
+      pickedUp: {
+        type: Boolean,
+        default: false
+      }
+    }
+  ]
 }, { timestamps: true });  // Thêm createdAt và updatedAt
 
 module.exports = mongoose.model('Booking_Carpool', BookingCarpoolSchema);
